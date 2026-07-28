@@ -1,9 +1,9 @@
-#!/bin/zsh
+#!/bin/bash
 
 # 🧬 Project Acritarch Release Validation Gatekeeper
 # Verifies that code compiles, tests pass, lint is clean, and bumps the version.
 
-PROJECT_DIR="/Users/admin/rttss-sahil/inforttsOrg/projects/acritarch"
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION_FILE="$PROJECT_DIR/.version"
 
 echo "🧬 Launching Acritarch Validation Gatekeeper..."
