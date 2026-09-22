@@ -1,10 +1,10 @@
-#!/bin/zsh
+#!/bin/bash
 
 # 🧬 Project Acritarch Local Dev Orchestrator
 # This script orchestrates the local running of the Acritarch Agent-First Docs & MCP Server.
 
 CWD=$(pwd)
-PROJECT_DIR="/Users/admin/rttss-sahil/inforttsOrg/projects/acritarch"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🧬 Initializing Acritarch Swarm Orchestrator..."
 
@@ -44,7 +44,7 @@ case "$1" in
   "dev" | "")
     echo "🛰️ Starting full Acritarch application stack..."
     # Concurrently start frontend, backend, and isolated Chrome browser session targeting localhost:9015
-    echo "Launced Acritarch MCP service. Listening on Port 8035..."
+    echo "Launched Acritarch MCP service. Listening on Port 8035..."
     exit 0
     ;;
 
