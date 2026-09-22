@@ -44,7 +44,6 @@ graphify-out/
 .claude/
 .swarm/
 .playwright-mcp/
-projects/infra/
 .pub-cache/
 **/.dart_tool/
 **/build/
@@ -57,4 +56,3 @@ projects/infra/
 
 # Go cache and builds
 **/.go_cache/
-projects/glycocalyx/glycocalyx

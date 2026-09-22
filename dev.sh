@@ -3,7 +3,6 @@
 # 🧬 Project Acritarch Local Dev Orchestrator
 # This script orchestrates the local running of the Acritarch Agent-First Docs & MCP Server.
 
-CWD=$(pwd)
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🧬 Initializing Acritarch Swarm Orchestrator..."
