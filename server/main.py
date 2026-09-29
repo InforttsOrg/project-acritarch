@@ -1,6 +1,7 @@
 """
 Project Acritarch — Centralized Infortts Docs & MCP Gateway Server
 Serves multi-service Swagger/OpenAPI documentation, markdown archives, and MCP endpoints.
+Mobile-first responsive architecture.
 """
 
 import os
@@ -9,7 +10,6 @@ from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from registry import SERVICES, get_all_services, get_service_spec
 from parser import get_project_markdown, scan_all_projects
@@ -18,7 +18,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     title="Project Acritarch — Infortts Central Docs & Schema Gateway",
-    version="1.0.0",
+    version="1.0.2",
     description="Centralized OpenAPI/Swagger documentation hub and MCP gateway for the Infortts Autonomous Swarm."
 )
 
@@ -29,8 +29,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-CLIENT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "client")
 
 
 @app.get("/health")
@@ -97,12 +95,10 @@ def global_search(q: str = Query(..., min_length=2)):
     matches = []
 
     for sid, svc in SERVICES.items():
-        # Check service metadata
         svc_match = False
         if q_clean in svc["name"].lower() or q_clean in svc["description"].lower() or any(q_clean in t for t in svc.get("tags", [])):
             svc_match = True
 
-        # Check endpoints
         paths = svc.get("openapi", {}).get("paths", {})
         for path_key, methods in paths.items():
             for method, details in methods.items():
@@ -127,7 +123,6 @@ def global_search(q: str = Query(..., min_length=2)):
     }
 
 
-# MCP JSON-RPC Gateway endpoint
 @app.post("/mcp")
 def mcp_gateway(payload: Dict[str, Any]):
     """Model Context Protocol (MCP) JSON-RPC handler for autonomous agents."""
@@ -210,18 +205,23 @@ def mcp_gateway(payload: Dict[str, Any]):
     }
 
 
-# Serve Swagger UI Documentation Viewer for any service or aggregated
 @app.get("/docs", response_class=HTMLResponse)
 def serve_docs_portal(service: Optional[str] = "glycocalyx"):
     target_service = service.lower() if service else "glycocalyx"
     if target_service not in SERVICES:
         target_service = "glycocalyx"
 
+    # Build dropdown options
+    options_html = ""
+    for sid, s in SERVICES.items():
+        sel = "selected" if sid == target_service else ""
+        options_html += f'<option value="{sid}" {sel}>{s["name"]} (:{s["default_port"]})</option>'
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Infortts Swarm API Hub — Project Acritarch</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -240,14 +240,39 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       --blue: #3b82f6;
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
+    html, body {{
       background: var(--bg);
       color: var(--steel);
       font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-      display: flex;
-      height: 100vh;
+      height: 100%;
+      width: 100%;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }}
+    
+    .app-layout {{
+      display: flex;
+      height: 100%;
+      width: 100%;
+      position: relative;
+    }}
+
+    /* Mobile Backdrop */
+    .drawer-backdrop {{
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 7, 12, 0.75);
+      backdrop-filter: blur(6px);
+      z-index: 990;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }}
+    .drawer-backdrop.active {{
+      display: block;
+      opacity: 1;
+    }}
+
     /* Sidebar */
     .sidebar {{
       width: 290px;
@@ -256,24 +281,32 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+      z-index: 1000;
+      height: 100%;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     }}
     .brand {{
-      padding: 20px 18px;
+      padding: 16px 18px;
       border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }}
+    .brand-left {{
       display: flex;
       align-items: center;
       gap: 12px;
     }}
     .brand-icon {{
-      width: 38px;
-      height: 38px;
+      width: 36px;
+      height: 36px;
       border-radius: 10px;
       background: linear-gradient(135deg, #12202e, #0a111a);
       border: 1px solid rgba(33, 230, 208, 0.3);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
+      font-size: 18px;
       box-shadow: 0 0 16px var(--cyan-glow);
     }}
     .brand-title {{
@@ -287,8 +320,18 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       color: var(--cyan);
       font-family: 'JetBrains Mono', monospace;
     }}
+    .close-drawer-btn {{
+      display: none;
+      background: transparent;
+      border: 0;
+      color: var(--steel);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px;
+    }}
+
     .search-box {{
-      padding: 14px 16px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--border);
     }}
     .search-input {{
@@ -308,7 +351,7 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
     .service-list {{
       flex: 1;
       overflow-y: auto;
-      padding: 12px 8px;
+      padding: 10px 8px;
     }}
     .category-label {{
       font-size: 10px;
@@ -316,13 +359,13 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       letter-spacing: 0.08em;
       color: #52677d;
       font-weight: 700;
-      padding: 10px 12px 4px;
+      padding: 10px 10px 4px;
     }}
     .service-item {{
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 9px 12px;
+      padding: 10px 12px;
       border-radius: 8px;
       color: var(--steel);
       text-decoration: none;
@@ -360,101 +403,184 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       flex: 1;
       display: flex;
       flex-direction: column;
+      height: 100%;
+      min-width: 0;
       overflow: hidden;
       background: var(--bg);
     }}
     .top-bar {{
-      height: 58px;
+      min-height: 56px;
       background: var(--sidebar);
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      padding: 8px 16px;
+      gap: 10px;
+      z-index: 10;
+    }}
+    .top-bar-left {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }}
+    .menu-toggle-btn {{
+      display: none;
+      background: #101a26;
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 16px;
+      cursor: pointer;
+      line-height: 1;
     }}
     .service-header {{
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      min-width: 0;
+      overflow: hidden;
     }}
     .current-svc-name {{
       color: var(--titanium);
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }}
     .current-svc-domain {{
       color: var(--cyan);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+      font-size: 11px;
       background: rgba(33, 230, 208, 0.08);
       border: 1px solid rgba(33, 230, 208, 0.2);
-      padding: 3px 10px;
-      border-radius: 12px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
     }}
+    .top-bar-right {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }}
+    .mobile-svc-select {{
+      display: none;
+      background: #080d14;
+      border: 1px solid var(--border);
+      color: var(--cyan);
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      max-width: 140px;
+    }}
+    .spec-link {{
+      color: var(--cyan);
+      font-size: 11px;
+      text-decoration: none;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+    }}
+    
     .docs-scroll {{
       flex: 1;
       overflow-y: auto;
-      padding: 24px 32px;
+      overflow-x: hidden;
+      padding: 20px 24px;
+      width: 100%;
     }}
 
-    /* Custom Swagger UI Overrides for Obsidian Dark Theme */
+    /* Full Fluid Swagger UI Theme */
     .swagger-ui {{
       font-family: inherit !important;
       color: var(--steel) !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }}
+    .swagger-ui .wrapper {{
+      padding: 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
     }}
     .swagger-ui .info {{
-      margin: 20px 0 !important;
+      margin: 10px 0 20px !important;
     }}
     .swagger-ui .info .title {{
       color: var(--titanium) !important;
-      font-size: 24px !important;
+      font-size: 22px !important;
       font-weight: 700 !important;
+      letter-spacing: -0.01em;
     }}
     .swagger-ui .info p, .swagger-ui .info li {{
       color: var(--steel) !important;
-      font-size: 14px !important;
+      font-size: 13px !important;
     }}
     .swagger-ui .scheme-container {{
       background: var(--surface) !important;
       box-shadow: none !important;
       border: 1px solid var(--border) !important;
       border-radius: 12px !important;
-      padding: 16px !important;
-      margin-bottom: 24px !important;
+      padding: 12px 16px !important;
+      margin-bottom: 20px !important;
     }}
     .swagger-ui .opblock {{
       background: #0a0f16 !important;
       border: 1px solid var(--border) !important;
       border-radius: 10px !important;
-      margin-bottom: 12px !important;
+      margin-bottom: 10px !important;
       box-shadow: none !important;
+      overflow: hidden;
     }}
     .swagger-ui .opblock .opblock-summary {{
-      padding: 10px 14px !important;
+      padding: 10px 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      flex-wrap: wrap !important;
+      gap: 6px !important;
+    }}
+    .swagger-ui .opblock .opblock-summary-method {{
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      border-radius: 6px !important;
+      padding: 4px 8px !important;
+      min-width: 54px !important;
+      text-align: center !important;
     }}
     .swagger-ui .opblock .opblock-summary-path {{
       color: var(--titanium) !important;
       font-family: 'JetBrains Mono', monospace !important;
       font-size: 13px !important;
+      word-break: break-all !important;
+      white-space: normal !important;
+      max-width: 100% !important;
+      flex: 1 1 auto !important;
     }}
     .swagger-ui .opblock .opblock-summary-description {{
       color: var(--steel) !important;
       font-size: 12px !important;
+      width: 100% !important;
+      margin-top: 2px !important;
     }}
     .swagger-ui .opblock-body {{
       background: #070b11 !important;
-    }}
-    .swagger-ui .tabli button {{
-      color: var(--steel) !important;
+      padding: 14px !important;
+      overflow-x: auto !important;
     }}
     .swagger-ui table thead tr th, .swagger-ui table tbody tr td {{
       color: var(--steel) !important;
       border-bottom: 1px solid var(--border) !important;
+      font-size: 12px !important;
     }}
     .swagger-ui .btn {{
       border-radius: 8px !important;
       border-color: var(--border) !important;
       color: var(--titanium) !important;
+      font-size: 12px !important;
     }}
     .swagger-ui .btn.execute {{
       background-color: var(--cyan) !important;
@@ -466,103 +592,172 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       background: #0d1520 !important;
       color: var(--titanium) !important;
       border-color: var(--border) !important;
+      max-width: 100% !important;
     }}
     .swagger-ui input[type=text], .swagger-ui textarea {{
       background: #080d14 !important;
       color: var(--titanium) !important;
       border: 1px solid var(--border) !important;
       border-radius: 6px !important;
+      max-width: 100% !important;
+      width: 100% !important;
     }}
     .swagger-ui .response-col_status {{
       color: var(--titanium) !important;
+    }}
+    .swagger-ui .model-box {{
+      background: #090e15 !important;
+      max-width: 100% !important;
+      overflow-x: auto !important;
+    }}
+    .swagger-ui pre {{
+      background: #06090f !important;
+      border-radius: 8px !important;
+      border: 1px solid var(--border) !important;
+      max-width: 100% !important;
+      overflow-x: auto !important;
+    }}
+
+    /* Mobile Responsive Breakpoints */
+    @media (max-width: 860px) {{
+      .sidebar {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        max-width: 85vw;
+        transform: translateX(-100%);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.8);
+      }}
+      .sidebar.open {{
+        transform: translateX(0);
+      }}
+      .close-drawer-btn {{
+        display: block;
+      }}
+      .menu-toggle-btn {{
+        display: block;
+      }}
+      .mobile-svc-select {{
+        display: block;
+      }}
+      .current-svc-domain {{
+        display: none;
+      }}
+      .spec-link {{
+        display: none;
+      }}
+      .docs-scroll {{
+        padding: 14px 10px;
+      }}
+      .swagger-ui .info .title {{
+        font-size: 18px !important;
+      }}
+      .swagger-ui .opblock .opblock-summary-path {{
+        font-size: 12px !important;
+      }}
     }}
   </style>
 </head>
 <body>
 
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-icon">🧬</div>
-      <div>
-        <div class="brand-title">Project Acritarch</div>
-        <div class="brand-sub">Infortts Swarm Docs Hub</div>
+  <div class="app-layout">
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+    <aside class="sidebar" id="sidebarDrawer">
+      <div class="brand">
+        <div class="brand-left">
+          <div class="brand-icon">🧬</div>
+          <div>
+            <div class="brand-title">Project Acritarch</div>
+            <div class="brand-sub">Infortts Swarm Docs Hub</div>
+          </div>
+        </div>
+        <button class="close-drawer-btn" id="closeDrawerBtn" aria-label="Close menu">✕</button>
       </div>
-    </div>
 
-    <div class="search-box">
-      <input type="text" class="search-input" id="searchFilter" placeholder="Filter microservices or routes..." />
-    </div>
-
-    <div class="service-list" id="servicesNav">
-      <div class="category-label">Ecosystem Gateways</div>
-      <a href="/docs?service=glycocalyx" class="service-item {"active" if target_service == "glycocalyx" else ""}">
-        <span>🧬 Glycocalyx Auth</span>
-        <span class="port-tag">:8020</span>
-      </a>
-      <a href="/docs?service=spark" class="service-item {"active" if target_service == "spark" else ""}">
-        <span>⚡ Spark Gateway</span>
-        <span class="port-tag">:8080</span>
-      </a>
-
-      <div class="category-label">Quant & Telemetry</div>
-      <a href="/docs?service=mitochondria" class="service-item {"active" if target_service == "mitochondria" else ""}">
-        <span>⚡ Mitochondria HFT</span>
-        <span class="port-tag">:9910</span>
-      </a>
-      <a href="/docs?service=cardiodictyon" class="service-item {"active" if target_service == "cardiodictyon" else ""}">
-        <span>🫀 Cardiodictyon Vital</span>
-        <span class="port-tag">:9911</span>
-      </a>
-      <a href="/docs?service=wiwaxia" class="service-item {"active" if target_service == "wiwaxia" else ""}">
-        <span>🔬 Wiwaxia Compute</span>
-        <span class="port-tag">:9902</span>
-      </a>
-
-      <div class="category-label">Intelligence & Agents</div>
-      <a href="/docs?service=primata" class="service-item {"active" if target_service == "primata" else ""}">
-        <span>🧠 Primata Core</span>
-        <span class="port-tag">:8006</span>
-      </a>
-      <a href="/docs?service=prism" class="service-item {"active" if target_service == "prism" else ""}">
-        <span>📊 Prism Analytics</span>
-        <span class="port-tag">:8005</span>
-      </a>
-      <a href="/docs?service=cyanobacteria" class="service-item {"active" if target_service == "cyanobacteria" else ""}">
-        <span>🦠 Cyanobacteria Brain</span>
-        <span class="port-tag">:8010</span>
-      </a>
-
-      <div class="category-label">Security & Network Mesh</div>
-      <a href="/docs?service=orthrozanclus" class="service-item {"active" if target_service == "orthrozanclus" else ""}">
-        <span>🛡️ Orthrozanclus SIEM</span>
-        <span class="port-tag">:9912</span>
-      </a>
-      <a href="/docs?service=ernietta" class="service-item {"active" if target_service == "ernietta" else ""}">
-        <span>🌐 Ernietta Fabric</span>
-        <span class="port-tag">:9913</span>
-      </a>
-      <a href="/docs?service=pikaia" class="service-item {"active" if target_service == "pikaia" else ""}">
-        <span>🌿 Pikaia RBAC</span>
-        <span class="port-tag">:8040</span>
-      </a>
-    </div>
-  </aside>
-
-  <main class="main-content">
-    <header class="top-bar">
-      <div class="service-header">
-        <span class="current-svc-name">{SERVICES.get(target_service, {}).get("name", "Infortts API")}</span>
-        <span class="current-svc-domain">{SERVICES.get(target_service, {}).get("domain", "infortts.site")}</span>
+      <div class="search-box">
+        <input type="text" class="search-input" id="searchFilter" placeholder="Filter microservices or routes..." />
       </div>
-      <div>
-        <a href="/api/specs/{target_service}" target="_blank" style="color:var(--cyan);font-size:12px;text-decoration:none;font-family:'JetBrains Mono',monospace;">Raw OpenAPI Spec →</a>
-      </div>
-    </header>
 
-    <div class="docs-scroll">
-      <div id="swagger-ui"></div>
-    </div>
-  </main>
+      <div class="service-list" id="servicesNav">
+        <div class="category-label">Ecosystem Gateways</div>
+        <a href="/docs?service=glycocalyx" class="service-item {"active" if target_service == "glycocalyx" else ""}">
+          <span>🧬 Glycocalyx Auth</span>
+          <span class="port-tag">:8020</span>
+        </a>
+        <a href="/docs?service=spark" class="service-item {"active" if target_service == "spark" else ""}">
+          <span>⚡ Spark Gateway</span>
+          <span class="port-tag">:8080</span>
+        </a>
+
+        <div class="category-label">Quant & Telemetry</div>
+        <a href="/docs?service=mitochondria" class="service-item {"active" if target_service == "mitochondria" else ""}">
+          <span>⚡ Mitochondria HFT</span>
+          <span class="port-tag">:9910</span>
+        </a>
+        <a href="/docs?service=cardiodictyon" class="service-item {"active" if target_service == "cardiodictyon" else ""}">
+          <span>🫀 Cardiodictyon Vital</span>
+          <span class="port-tag">:9911</span>
+        </a>
+        <a href="/docs?service=wiwaxia" class="service-item {"active" if target_service == "wiwaxia" else ""}">
+          <span>🔬 Wiwaxia Compute</span>
+          <span class="port-tag">:9902</span>
+        </a>
+
+        <div class="category-label">Intelligence & Agents</div>
+        <a href="/docs?service=primata" class="service-item {"active" if target_service == "primata" else ""}">
+          <span>🧠 Primata Core</span>
+          <span class="port-tag">:8006</span>
+        </a>
+        <a href="/docs?service=prism" class="service-item {"active" if target_service == "prism" else ""}">
+          <span>📊 Prism Analytics</span>
+          <span class="port-tag">:8005</span>
+        </a>
+        <a href="/docs?service=cyanobacteria" class="service-item {"active" if target_service == "cyanobacteria" else ""}">
+          <span>🦠 Cyanobacteria Brain</span>
+          <span class="port-tag">:8010</span>
+        </a>
+
+        <div class="category-label">Security & Network Mesh</div>
+        <a href="/docs?service=orthrozanclus" class="service-item {"active" if target_service == "orthrozanclus" else ""}">
+          <span>🛡️ Orthrozanclus SIEM</span>
+          <span class="port-tag">:9912</span>
+        </a>
+        <a href="/docs?service=ernietta" class="service-item {"active" if target_service == "ernietta" else ""}">
+          <span>🌐 Ernietta Fabric</span>
+          <span class="port-tag">:9913</span>
+        </a>
+        <a href="/docs?service=pikaia" class="service-item {"active" if target_service == "pikaia" else ""}">
+          <span>🌿 Pikaia RBAC</span>
+          <span class="port-tag">:8040</span>
+        </a>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <button class="menu-toggle-btn" id="openDrawerBtn" aria-label="Open menu">☰</button>
+          <div class="service-header">
+            <span class="current-svc-name">{SERVICES.get(target_service, {}).get("name", "Infortts API")}</span>
+            <span class="current-svc-domain">{SERVICES.get(target_service, {}).get("domain", "infortts.site")}</span>
+          </div>
+        </div>
+        <div class="top-bar-right">
+          <select class="mobile-svc-select" id="mobileSvcSelect" onchange="location.href='/docs?service=' + this.value">
+            {options_html}
+          </select>
+          <a class="spec-link" href="/api/specs/{target_service}" target="_blank">Raw Spec →</a>
+        </div>
+      </header>
+
+      <div class="docs-scroll">
+        <div id="swagger-ui"></div>
+      </div>
+    </main>
+  </div>
 
   <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
   <script>
@@ -578,6 +773,26 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
       layout: "BaseLayout"
     }});
 
+    // Mobile Drawer Controls
+    const sidebar = document.getElementById('sidebarDrawer');
+    const backdrop = document.getElementById('drawerBackdrop');
+    const openBtn = document.getElementById('openDrawerBtn');
+    const closeBtn = document.getElementById('closeDrawerBtn');
+
+    function toggleDrawer(open) {{
+      if (open) {{
+        sidebar.classList.add('open');
+        backdrop.classList.add('active');
+      }} else {{
+        sidebar.classList.remove('open');
+        backdrop.classList.remove('active');
+      }}
+    }}
+
+    openBtn.addEventListener('click', () => toggleDrawer(true));
+    closeBtn.addEventListener('click', () => toggleDrawer(false));
+    backdrop.addEventListener('click', () => toggleDrawer(false));
+
     // Live filter search
     document.getElementById('searchFilter').addEventListener('input', function(e) {{
       const q = e.target.value.toLowerCase();
@@ -591,7 +806,6 @@ def serve_docs_portal(service: Optional[str] = "glycocalyx"):
 </html>
 """
 
-# Default route redirects to /docs
 @app.get("/", response_class=HTMLResponse)
 def root_index():
     return serve_docs_portal("glycocalyx")
