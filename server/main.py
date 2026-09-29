@@ -15,6 +15,8 @@ from registry import SERVICES, get_all_services, get_service_spec
 from parser import get_project_markdown, scan_all_projects
 
 app = FastAPI(
+    docs_url=None,
+    redoc_url=None,
     title="Project Acritarch — Infortts Central Docs & Schema Gateway",
     version="1.0.0",
     description="Centralized OpenAPI/Swagger documentation hub and MCP gateway for the Infortts Autonomous Swarm."
