@@ -6,26 +6,42 @@ Mobile-first responsive architecture.
 
 import os
 import json
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from registry import SERVICES, get_all_services, get_service_spec
-from parser import get_project_markdown, scan_all_projects
+from parser import get_project_markdown
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _read_project_version() -> str:
+    """Reads the semantic version from the repo-root .version file (single source of truth)."""
+    try:
+        with open(os.path.join(PROJECT_DIR, ".version"), "r", encoding="utf-8") as f:
+            return f.read().strip() or "0.0.0"
+    except OSError:
+        return "0.0.0"
+
 
 app = FastAPI(
     docs_url=None,
     redoc_url=None,
     title="Project Acritarch — Infortts Central Docs & Schema Gateway",
-    version="1.0.2",
+    version=_read_project_version(),
     description="Centralized OpenAPI/Swagger documentation hub and MCP gateway for the Infortts Autonomous Swarm."
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # This hub is a public, read-only documentation/MCP surface with no cookies
+    # or sessions. Credentials must stay off: "allow_origins=*" combined with
+    # allow_credentials=True emits a contradictory wildcard + credentials header
+    # pair that browsers reject anyway.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
