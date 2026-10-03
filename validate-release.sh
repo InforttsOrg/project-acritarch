@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 set -e
 
 # 🧬 Project Acritarch Release Validation Gatekeeper
@@ -6,7 +6,7 @@ set -e
 
 export PYTHONDONTWRITEBYTECODE=1
 
-PROJECT_DIR="/Users/admin/rttss-sahil/inforttsOrg/projects/acritarch"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION_FILE="$PROJECT_DIR/.version"
 
 echo "🧬 Launching Acritarch Validation Gatekeeper..."
@@ -18,11 +18,9 @@ fi
 CURRENT_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
 echo "📍 Current Version: $CURRENT_VERSION"
 
-# Locate Python with required packages
+# Locate Python with required packages (prefer this project's own venv)
 PYTHON_BIN="python3"
-if [ -f "/Users/admin/rttss-sahil/inforttsOrg/projects/primata/venv/bin/python3" ]; then
-  PYTHON_BIN="/Users/admin/rttss-sahil/inforttsOrg/projects/primata/venv/bin/python3"
-elif [ -f "$PROJECT_DIR/venv/bin/python3" ]; then
+if [ -f "$PROJECT_DIR/venv/bin/python3" ]; then
   PYTHON_BIN="$PROJECT_DIR/venv/bin/python3"
 fi
 

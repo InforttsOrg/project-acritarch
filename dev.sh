@@ -1,9 +1,9 @@
-#!/bin/zsh
+#!/bin/bash
 
 # 🧬 Project Acritarch Local Dev Orchestrator
 # This script orchestrates the local running of the Acritarch Agent-First Docs & MCP Server.
 
-PROJECT_DIR="/Users/admin/rttss-sahil/inforttsOrg/projects/acritarch"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT=8035
 
 echo "🧬 Initializing Acritarch Swarm Orchestrator..."
