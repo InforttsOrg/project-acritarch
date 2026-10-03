@@ -4,23 +4,58 @@ Scans project submodules across inforttsOrg to index markdown docs and API route
 """
 
 import os
-import json
-import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
-INFORTTS_ROOT = "/Users/admin/rttss-sahil/inforttsOrg"
+# Candidate swarm roots, ordered by priority. The first one that actually
+# contains a populated "projects/" directory wins, so the same code runs on
+# the VPS master node and on developer workstations.
+_ROOT_CANDIDATES = [
+    os.environ.get("ACRITARCH_INFORTTS_ROOT", ""),
+    "/opt/infortts",
+    "/Users/admin/rttss-sahil/inforttsOrg",
+]
+
+
+def _resolve_infortts_root() -> str:
+    for candidate in _ROOT_CANDIDATES:
+        if candidate and os.path.isdir(os.path.join(candidate, "projects")):
+            return candidate
+    return _ROOT_CANDIDATES[1]
+
+
+INFORTTS_ROOT = _resolve_infortts_root()
 PROJECTS_DIR = os.path.join(INFORTTS_ROOT, "projects")
+
+# Markdown files indexed for each project.
+DOC_CANDIDATES = ["README.md", "MINDMAP.md", "task.md", "AGENTS.md", "GEMINI.md", "docs/index.md"]
+
+
+def _resolve_project_dir(project_id: str) -> str:
+    """Resolves a project id to its directory, refusing anything outside PROJECTS_DIR.
+
+    Guards against path traversal (e.g. "../../etc") since project_id originates
+    from an untrusted HTTP path parameter in /api/docs/{service_id}/markdown.
+    """
+    if not project_id or project_id in (".", "..") or os.path.isabs(project_id):
+        return ""
+    if os.sep in project_id or (os.altsep and os.altsep in project_id):
+        return ""
+
+    pdir = os.path.realpath(os.path.join(PROJECTS_DIR, project_id))
+    root = os.path.realpath(PROJECTS_DIR)
+    if pdir == root or not pdir.startswith(root + os.sep):
+        return ""
+    return pdir
 
 
 def get_project_markdown(project_id: str) -> Dict[str, str]:
     """Reads available Markdown documentation for a given project."""
     docs = {}
-    pdir = os.path.join(PROJECTS_DIR, project_id)
-    if not os.path.isdir(pdir):
+    pdir = _resolve_project_dir(project_id)
+    if not pdir or not os.path.isdir(pdir):
         return docs
 
-    candidates = ["README.md", "MINDMAP.md", "task.md", "AGENTS.md", "GEMINI.md", "docs/index.md"]
-    for c in candidates:
+    for c in DOC_CANDIDATES:
         cp = os.path.join(pdir, c)
         if os.path.isfile(cp):
             try:
