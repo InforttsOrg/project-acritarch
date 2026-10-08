@@ -1,7 +1,7 @@
 # 🧬 Project Acritarch — Agent-First Docs & MCP Gateway
 
 > **Status:** Operational — Swagger API Hub + MCP Gateway serving
-> **Operational Domain:** `docs.infortts.com`
+> **Operational Domain:** `docs.infortts.site`
 > **Private Container Network Port:** `8035`
 
 ---
@@ -49,7 +49,7 @@ projects/acritarch/
 ### 1. Requirements Compilation
 * **Python SDK:** Python `3.10+`. Install server dependencies with `pip install -r server/requirements.txt`.
 * **Swarm root:** markdown indexing resolves the swarm checkout automatically
-  (`ACRITARCH_INFORTTS_ROOT` → `/opt/infortts` → `~/rttss-sahil/inforttsOrg`). Set
+  (`ACRITARCH_INFORTTS_ROOT` → `/opt/infortts` → `/Users/admin/rttss-sahil/inforttsOrg`). Set
   `ACRITARCH_INFORTTS_ROOT` if your checkout lives elsewhere.
 * **Static Assets:** The Swagger UI hub is self-contained and served by the FastAPI app itself.
 
@@ -62,7 +62,9 @@ To run the Central Docs & MCP Gateway on port `8035`:
 ```
 
 ### 3. Release Verification
-To verify Markdown parsing, run JSON-RPC schema tests, and auto-bump the semantic version:
+To verify Markdown parsing, run JSON-RPC schema tests without touching the version:
 ```bash
-./validate-release.sh
+./validate-release.sh --test-only
 ```
+Omitting `--test-only` performs the same validation and also bumps the patch
+version in `.version` (the release path used by maintainers).
