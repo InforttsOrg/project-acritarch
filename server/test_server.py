@@ -89,10 +89,38 @@ class TestAcritarchCore(unittest.TestCase):
         self.assertIn("/auth/login", spec_text)
 
     def test_markdown_parser(self):
-        """Tests markdown documentation scanner across submodules."""
-        scanned = scan_all_projects()
+        """Tests the markdown scanner against a hermetic temp tree.
+
+        The scanner resolves the swarm checkout from the host filesystem, which
+        does not exist on a bare CI runner, so scanning the real projects/ dir
+        is not portable (it yielded an empty list and failed the old >0 assert).
+        """
+        import tempfile
+        import parser as parser_module
+
+        original_projects_dir = parser_module.PROJECTS_DIR
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = os.path.join(tmp, "sampleproject")
+            os.makedirs(proj)
+            with open(os.path.join(proj, "README.md"), "w", encoding="utf-8") as f:
+                f.write("# Sample Project\n\nA short summary line.\n")
+            open(os.path.join(proj, "dev.sh"), "w").close()
+            open(os.path.join(proj, "validate-release.sh"), "w").close()
+
+            parser_module.PROJECTS_DIR = tmp
+            try:
+                scanned = scan_all_projects()
+            finally:
+                parser_module.PROJECTS_DIR = original_projects_dir
+
         self.assertIsInstance(scanned, list)
-        self.assertGreater(len(scanned), 0)
+        self.assertEqual(len(scanned), 1)
+        entry = scanned[0]
+        self.assertEqual(entry["id"], "sampleproject")
+        self.assertEqual(entry["title"], "Sample Project")
+        self.assertTrue(entry["has_readme"])
+        self.assertTrue(entry["has_dev_script"])
+        self.assertTrue(entry["has_release_gate"])
 
 
 if __name__ == "__main__":
